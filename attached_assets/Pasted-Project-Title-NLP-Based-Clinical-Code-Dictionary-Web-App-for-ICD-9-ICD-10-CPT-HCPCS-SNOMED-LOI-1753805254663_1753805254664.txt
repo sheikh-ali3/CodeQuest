@@ -1,0 +1,234 @@
+Project Title:
+NLP-Based Clinical Code Dictionary Web App for ICD-9, ICD-10, CPT, HCPCS, SNOMED, LOINC, and HCC
+
+📌 Project Overview:
+Develop a web application that allows users to search for and retrieve medical codes and descriptions (ICD-9, ICD-10, CPT, HCPCS, SNOMED CT, LOINC, HCC) by code or free-text description. The application should support:
+
+Exact and Similar Search
+
+Smart NLP Matching
+
+CSV-based Upload for Data Ingestion
+
+Search via uploaded CSV
+
+Search Suggestions and Synonyms
+
+👥 Target Users:
+Healthcare providers
+
+Medical coders & billing staff
+
+Clinical researchers
+
+Medical transcriptionists
+
+Health IT system administrators
+
+🧠 Core Functionalities:
+🔍 Search Capabilities:
+Search by Code (e.g., E11.9, 99213, etc.)
+
+Search by Description (e.g., “Type 2 Diabetes Mellitus”)
+
+Return Exact + Fuzzy Matches
+
+NLP-driven similarity scoring using:
+
+Tokenization
+
+Synonym recognition
+
+TF-IDF or BERT Embeddings
+
+Cosine similarity
+
+📁 CSV Upload Features:
+Admin can upload CSV files for each code system (ICD-9, ICD-10, etc.)
+
+Fields: code, description, category (optional), synonyms (optional)
+
+Users can upload a CSV file to search multiple codes or terms in one go
+
+📊 Frontend (React.js)
+Pages & Components:
+Home Page
+
+Quick search bar (code or description)
+
+Recent or popular searches
+
+Search Results Page
+
+Table view of results with:
+
+Code System
+
+Code
+
+Description
+
+Match Score (if fuzzy)
+
+Filter by Code Type (ICD10, CPT, etc.)
+
+Upload Page (Admin & User)
+
+Upload CSV (Drag & Drop or Select)
+
+Preview and import data
+
+Upload CSV for bulk search
+
+Admin Panel
+
+Upload and manage data sources
+
+View upload logs
+
+About / Help Page
+
+UI Libraries:
+Tailwind CSS or Material UI
+
+React Table
+
+React Dropzone
+
+React Router DOM
+
+🔐 Authentication (Optional Phase):
+JWT-based Login/Signup
+
+Role-Based Access:
+
+Admin
+
+User
+
+🗃️ Backend (Node.js + Express)
+API Endpoints:
+Method	Route	Purpose
+POST	/api/upload/data	Admin upload clinical code CSV
+POST	/api/upload/search	User uploads CSV to search multiple entries
+POST	/api/search	Search by text/code
+GET	/api/search/:codeType	Filter by ICD10, CPT, etc.
+GET	/api/code/:id	Fetch individual code detail
+GET	/api/stats	Stats like # of codes per system
+
+Middleware:
+File upload validation (using multer)
+
+CSV to JSON parser (csv-parser)
+
+Error handling
+
+Token-based access control
+
+🧱 Database (MongoDB Schema Design)
+Collection: clinical_codes
+json
+Copy
+Edit
+{
+  _id: ObjectId,
+  code_type: "ICD-10" | "ICD-9" | "CPT" | "HCPCS" | "SNOMED" | "LOINC" | "HCC",
+  code: "E11.9",
+  description: "Type 2 diabetes mellitus without complications",
+  synonyms: ["T2DM", "Diabetes Mellitus Type II"],
+  category: "Endocrine Disorders",
+  created_at: ISODate,
+  updated_at: ISODate
+}
+🧠 NLP Logic (Node.js or Python Microservice)
+Option 1: Built-in JS NLP (Fast, lighter)
+Use natural, fuse.js, or string-similarity libraries
+
+TF-IDF, Levenshtein, Cosine Similarity for fuzzy search
+
+Option 2: Python Microservice (Better results)
+Use Flask/FastAPI microservice
+
+Spacy, sentence-BERT, Scikit-learn, NLTK
+
+REST API endpoints for processing search queries
+
+🔄 Search Result Ranking (Score Breakdown)
+Component	Weight
+Exact Match	1.0
+Synonym Match	0.8
+Token Match	0.6
+Semantic Similarity	0.7 - 0.9 (based on cosine similarity)
+
+📦 Dependencies
+Frontend:
+React.js
+
+Axios
+
+React Dropzone
+
+React Router DOM
+
+Tailwind / MUI
+
+Backend:
+Node.js + Express.js
+
+Multer
+
+CSV-Parser
+
+MongoDB Driver / Mongoose
+
+NLP: natural, fuse.js, string-similarity
+
+Optional Python (if deeper NLP required):
+Flask / FastAPI
+
+Transformers
+
+Scikit-learn
+
+Pandas
+
+Sentence Transformers
+
+📈 Optional Features / Future Scope:
+Export Search Results to CSV/PDF
+
+Save Search History for Users
+
+Auto-correct suggestions
+
+ICD-HCC Risk Scoring Add-On
+
+Integration with EMRs/EHRs
+
+🧪 Testing Plan:
+CSV Upload: Validate structure, encoding, size
+
+Search:
+
+Exact match
+
+Fuzzy match
+
+No match
+
+NLP accuracy: precision/recall of matches
+
+Pagination and performance for large datasets
+
+Frontend and backend integration testing
+
+📤 Deliverables:
+Full source code with GitHub versioning
+
+REST API documentation (Swagger or Postman Collection)
+
+Admin panel walkthrough
+
+Sample CSV templates for all code types
+
+Deployment-ready build with instructions
