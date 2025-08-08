@@ -1,5 +1,9 @@
 import { type User, type InsertUser, type ClinicalCode, type InsertClinicalCode, type SearchHistory, type InsertSearchHistory, type SearchResult, type CodeType } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+import { users, clinicalCodes, searchHistory } from '@shared/schema';
+import { eq, like, ilike, or, desc } from 'drizzle-orm';
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -247,4 +251,153 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class PostgresStorage implements IStorage {
+  private db: any;
+
+  constructor() {
+    const sql = neon(process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_R9b3nAIVqtmZ@ep-twilight-flower-acst0c0d-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require');
+    this.db = drizzle(sql);
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await this.db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async getClinicalCode(id: string): Promise<ClinicalCode | undefined> {
+    const result = await this.db.select().from(clinicalCodes).where(eq(clinicalCodes.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllClinicalCodes(): Promise<ClinicalCode[]> {
+    return await this.db.select().from(clinicalCodes).orderBy(desc(clinicalCodes.createdAt));
+  }
+
+  async getClinicalCodesByType(codeType: CodeType): Promise<ClinicalCode[]> {
+    return await this.db.select().from(clinicalCodes).where(eq(clinicalCodes.codeType, codeType)).orderBy(desc(clinicalCodes.createdAt));
+  }
+
+  async createClinicalCode(insertCode: InsertClinicalCode): Promise<ClinicalCode> {
+    const result = await this.db.insert(clinicalCodes).values(insertCode).returning();
+    return result[0];
+  }
+
+  async createClinicalCodes(insertCodes: InsertClinicalCode[]): Promise<ClinicalCode[]> {
+    const results: ClinicalCode[] = [];
+    for (const insertCode of insertCodes) {
+      const code = await this.createClinicalCode(insertCode);
+      results.push(code);
+    }
+    return results;
+  }
+
+  async searchClinicalCodes(query: string, codeType?: CodeType): Promise<SearchResult[]> {
+    const queryLower = query.toLowerCase().trim();
+    
+    let baseQuery = this.db.select().from(clinicalCodes);
+    
+    if (codeType) {
+      baseQuery = baseQuery.where(eq(clinicalCodes.codeType, codeType));
+    }
+    
+    const allCodes = await baseQuery.orderBy(desc(clinicalCodes.createdAt));
+    
+    const results: SearchResult[] = [];
+
+    for (const code of allCodes) {
+      let matchScore = 0;
+      let matchType: 'exact' | 'fuzzy' | 'synonym' = 'fuzzy';
+
+      // Exact code match
+      if (code.code.toLowerCase() === queryLower) {
+        matchScore = 100;
+        matchType = 'exact';
+      }
+      // Exact description match
+      else if (code.description.toLowerCase() === queryLower) {
+        matchScore = 95;
+        matchType = 'exact';
+      }
+      // Synonym match
+      else if (code.synonyms?.some(synonym => synonym.toLowerCase() === queryLower)) {
+        matchScore = 90;
+        matchType = 'synonym';
+      }
+      // Partial code match
+      else if (code.code.toLowerCase().includes(queryLower)) {
+        matchScore = 85;
+      }
+      // Partial description match
+      else if (code.description.toLowerCase().includes(queryLower)) {
+        matchScore = Math.max(60, 80 - (code.description.length - queryLower.length) * 0.5);
+      }
+      // Synonym partial match
+      else if (code.synonyms?.some(synonym => synonym.toLowerCase().includes(queryLower))) {
+        matchScore = 70;
+        matchType = 'synonym';
+      }
+      // Word boundary matches in description
+      else {
+        const words = queryLower.split(/\s+/);
+        const descWords = code.description.toLowerCase().split(/\s+/);
+        const matchingWords = words.filter(word => 
+          descWords.some(descWord => descWord.includes(word) || word.includes(descWord))
+        );
+        
+        if (matchingWords.length > 0) {
+          matchScore = Math.max(30, (matchingWords.length / words.length) * 50);
+        }
+      }
+
+      if (matchScore > 0) {
+        results.push({
+          ...code,
+          matchScore: Math.round(matchScore),
+          matchType,
+        });
+      }
+    }
+
+    // Sort by match score descending
+    return results.sort((a, b) => b.matchScore - a.matchScore);
+  }
+
+  async createSearchHistory(insertHistory: InsertSearchHistory): Promise<SearchHistory> {
+    const result = await this.db.insert(searchHistory).values(insertHistory).returning();
+    return result[0];
+  }
+
+  async getRecentSearchHistory(limit = 10): Promise<SearchHistory[]> {
+    return await this.db.select().from(searchHistory).orderBy(desc(searchHistory.timestamp)).limit(limit);
+  }
+
+  async getCodeTypeStats(): Promise<Record<CodeType, number>> {
+    const codes = await this.getAllClinicalCodes();
+    const stats: Record<string, number> = {};
+    
+    for (const code of codes) {
+      stats[code.codeType] = (stats[code.codeType] || 0) + 1;
+    }
+    
+    return stats as Record<CodeType, number>;
+  }
+}
+
+// Use PostgreSQL storage if DATABASE_URL is available, otherwise fall back to in-memory storage
+const usePostgres = !!process.env.DATABASE_URL;
+console.log(`🗄️  Database Storage: ${usePostgres ? 'PostgreSQL (Neon)' : 'In-Memory (Development)'}`);
+console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL ? 'Set' : 'Not set'}`);
+
+export const storage = usePostgres 
+  ? new PostgresStorage() 
+  : new MemStorage();
