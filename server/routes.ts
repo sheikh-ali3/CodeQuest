@@ -230,6 +230,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug endpoint to check environment and database status
+  app.get("/api/debug", async (req, res) => {
+    try {
+      const isPostgres = storage.constructor.name === 'PostgresStorage';
+      const codes = await storage.getAllClinicalCodes();
+      const stats = await storage.getCodeTypeStats();
+      
+      res.json({
+        environment: {
+          NODE_ENV: process.env.NODE_ENV,
+          DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
+          DATABASE_URL_LENGTH: process.env.DATABASE_URL?.length || 0,
+          DATABASE_URL_PREFIX: process.env.DATABASE_URL?.substring(0, 20) + '...' || 'Not set',
+          PORT: process.env.PORT
+        },
+        storage: {
+          type: storage.constructor.name,
+          isPostgres,
+          totalCodes: codes.length
+        },
+        database: {
+          stats,
+          sampleCodes: codes.slice(0, 3).map(c => ({ codeType: c.codeType, code: c.code, description: c.description }))
+        }
+      });
+    } catch (error) {
+      console.error("Debug error:", error);
+      res.status(500).json({ 
+        message: "Debug error", 
+        error: error.message,
+        environment: {
+          NODE_ENV: process.env.NODE_ENV,
+          DATABASE_URL_EXISTS: !!process.env.DATABASE_URL
+        }
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

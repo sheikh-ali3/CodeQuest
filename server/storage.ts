@@ -397,7 +397,16 @@ export class PostgresStorage implements IStorage {
 const usePostgres = !!process.env.DATABASE_URL;
 console.log(`🗄️  Database Storage: ${usePostgres ? 'PostgreSQL (Neon)' : 'In-Memory (Development)'}`);
 console.log(`🔗 DATABASE_URL: ${process.env.DATABASE_URL ? 'Set' : 'Not set'}`);
+console.log(`🔍 Environment check:`, {
+  NODE_ENV: process.env.NODE_ENV,
+  DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
+  DATABASE_URL_LENGTH: process.env.DATABASE_URL?.length || 0,
+  DATABASE_URL_PREFIX: process.env.DATABASE_URL?.substring(0, 20) + '...' || 'Not set'
+});
 
-export const storage = usePostgres 
+// Force PostgreSQL in production if DATABASE_URL is set
+const shouldUsePostgres = usePostgres || (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL);
+
+export const storage = shouldUsePostgres 
   ? new PostgresStorage() 
   : new MemStorage();
